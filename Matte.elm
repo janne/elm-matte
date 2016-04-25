@@ -1,6 +1,7 @@
 module Matte where
 
 import Html exposing (..)
+import Html.Attributes exposing (id)
 import List
 
 type alias Equation = {
@@ -14,8 +15,8 @@ type alias Operator = {
   symbol: String
 }
 
-format : Equation -> Html
-format equation =
+format : Equation -> List Int -> Html
+format equation alternatives =
   let
     arr =
       [ toString equation.const1
@@ -26,7 +27,10 @@ format equation =
     toSpan str =
       span [] [ text str ]
   in
-    div [] (List.map toSpan arr)
+    div [] [
+      div [ id "equation" ] (List.map toSpan arr),
+      div [ id "alternatives" ] (List.map toString alternatives |> List.map toSpan)
+    ]
 
 plus : Operator
 plus =
@@ -34,4 +38,8 @@ plus =
 
 main : Html
 main =
-  format <| Equation 10 plus 20
+  let
+    equation = Equation 3 plus 7
+    alternatives = [ 9, 10, 11 ]
+  in
+    format equation alternatives
