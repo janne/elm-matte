@@ -1,5 +1,5 @@
-Matteläxa
-=========
+Matte
+=====
 
 Simple math exercises for children.
 
@@ -8,4 +8,4 @@ Setup
 
 * `elm package install`
 * `elm reactor`
-* `open localhost:8000`
+* [http://localhost:8000/Matte.elm](http://localhost:8000/Matte.elm)
