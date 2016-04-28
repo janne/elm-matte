@@ -1,7 +1,6 @@
-module CSS where
+module CSS exposing (..)
 
 import Html.Attributes exposing (id, style)
-import Html exposing (Attribute)
 
 (=>) = (,)
 
@@ -10,7 +9,6 @@ type alias Style =
   List (String, String)
 
 
-styles : List Style -> Attribute
 styles list =
   List.foldl (++) [] list |> style
 

@@ -1,20 +1,24 @@
-module Matte where
+module Matte exposing (..)
 
 import Html exposing (..)
 import List
 import Html.Attributes exposing (id, style, href)
 import Html.Events exposing (onClick)
+import Html.App as Html
 import CSS exposing (..)
-import Signal exposing (Address, Mailbox)
 import Maybe
 import String exposing (pad)
 import Time exposing (Time, second)
 import Random
+import Task
+
+main =
+  Html.program
+    { init = init, update = update, view = view, subscriptions = subscriptions }
 
 -- MODEL
 
 type alias Model = {
-  seed : Random.Seed,
   equation : Equation,
   choice : Maybe Int,
   correct : Maybe Bool,
@@ -23,6 +27,11 @@ type alias Model = {
   corrects : Int,
   done : Bool
 }
+
+
+init : (Model, Cmd Msg)
+init =
+  update Next initialModel
 
 
 type alias Equation = {
@@ -49,56 +58,101 @@ minus =
   Operator (-) "-"
 
 
-randomOperator : Random.Seed -> (Operator, Random.Seed)
-randomOperator seed =
+initEquation : Int -> Operator -> Int -> Equation
+initEquation n1 op n2 =
   let
-    number = Random.int 0 1
-    (n, seed') = Random.generate number seed
-  in
-     case n of
-       0 -> (plus, seed')
-       _ -> (minus, seed')
-
-
-newEquation : Random.Seed -> (Equation, Random.Seed)
-newEquation seed =
-  let
-    number = Random.int 0 20
-    (n1, seed') = Random.generate number seed
-    (n2, seed'') = Random.generate number seed'
-    (op, seed''') = randomOperator(seed)
     answer = op.func n1 n2
   in
-    if answer >= 0 && answer <= 20 then
-      ({
-        const1 = n1,
-        operator = op,
-        const2 = n2,
-        answer = answer
-      }, seed''')
-    else
-      newEquation seed'''
-
-
-initialModel : Random.Seed -> Model
-initialModel seed =
-  let
-    (equation, seed') = newEquation seed
-  in
     {
-      seed = seed',
-      equation = equation,
-      choice = Nothing,
-      correct = Nothing,
-      time = 0,
-      errors = 0,
-      corrects = 0,
-      done = False
+      const1 = n1,
+      operator = op,
+      const2 = n2,
+      answer = answer
     }
 
 
---VIEW
 
+initialModel : Model
+initialModel =
+  {
+    equation = initEquation 0 plus 0,
+    choice = Nothing,
+    correct = Nothing,
+    time = 0,
+    errors = 0,
+    corrects = 0,
+    done = False
+  }
+
+
+-- UPDATE
+
+type Msg
+  = Restart
+  | Choice Int
+  | NewEquation (Int, Int, Int)
+  | Next
+  | Tick
+
+
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model =
+  case msg of
+    Restart ->
+      init
+
+    Choice n ->
+      let
+        correct = n == model.equation.answer
+      in
+        (
+          { model |
+            choice = Just n,
+            correct = Just correct,
+            errors = if correct then model.errors else model.errors + 1,
+            corrects = if correct then model.corrects + 1 else model.corrects
+          }
+          , Cmd.none
+        )
+
+    Next ->
+      let
+        g21 = (Random.int 0 20)
+        g2 = (Random.int 0 1)
+        gen = Random.map3 (,,) g21 g2 g21
+      in
+        (model, (Random.generate NewEquation gen))
+
+    NewEquation (n1, op, n2) ->
+      let
+        operand = if op == 0 then plus else minus
+        equation = initEquation n1 operand n2
+        answer = operand.func n1 n2
+      in
+        if answer >= 0 && answer <= 20 then
+          ({ model |
+            equation = equation,
+            choice = Nothing,
+            correct = Nothing
+          }, Cmd.none)
+        else
+          update Next model
+
+    Tick ->
+      ({ model |
+        time = if model.done then model.time else model.time + 1,
+        done = model.time >= 60*15
+      }, Cmd.none)
+
+
+-- SUBSCRIPTIONS
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  Time.every second (always Tick)
+
+
+--VIEW
 
 spanStyle : Style
 spanStyle =
@@ -128,7 +182,7 @@ formatEquation equation =
   ]
 
 
-viewEquation : Model -> Html
+viewEquation : Model -> Html Msg
 viewEquation model =
   let
     toSpan str = span [ style spanStyle ] [ text str ]
@@ -147,13 +201,13 @@ viewEquation model =
     div [] (spans ++ [ span [ styles [ correctStyle, spanStyle ]  ] [ text response ] ])
 
 
-viewAlternatives : Address Action -> Html
-viewAlternatives address =
+viewAlternatives : Html Msg
+viewAlternatives =
   let
     toLink num = a [
       href "#",
       styles [[backgroundColor "#eae"], spanStyle ],
-      onClick address (Choice num)
+      onClick (Choice num)
     ] [ toString num |> text ]
   in
     span [] [
@@ -162,8 +216,8 @@ viewAlternatives address =
     ]
 
 
-next : Address Action -> Model -> Html
-next address model =
+next : Model -> Html Msg
+next model =
   case model.correct of
     Just True ->
       if model.done then
@@ -172,14 +226,14 @@ next address model =
            div [] [
              button [
                style [ fontSize 24 ],
-               onClick address Restart
+               onClick Restart
              ] [ text "Börja om" ]
            ]
          ]
       else
         button [
           style [ fontSize 24, marginTop 20 ],
-          onClick address Next
+          onClick Next
         ] [ text "Nästa" ]
     Just False ->
       span [ style [ fontSize 24 ] ] [ text  "Tyvärr, fel." ]
@@ -204,8 +258,8 @@ fmtTime n =
     minutes ++ ":" ++ seconds
 
 
-view : Address Action -> Model -> Html
-view address model =
+view : Model -> Html Msg
+view model =
   div [
     style [ maxWidth 800, margin "0 auto" ]
   ] [
@@ -222,82 +276,6 @@ view address model =
       span [ style [ color "#f55" ] ] [ model.errors |> toString |> text ]
     ],
     viewEquation model,
-    viewAlternatives address,
-    next address model
+    viewAlternatives,
+    next model
   ]
-
-
--- UPDATE
-
-type Action
-  = NoOp
-  | Restart
-  | Choice Int
-  | Next
-  | Tick
-
-
-update : Action -> Model -> Model
-update action model =
-  case action of
-    NoOp ->
-      model
-    Restart ->
-      initialModel model.seed
-    Choice n ->
-      let
-        correct = n == model.equation.answer
-      in
-        { model |
-          choice = Just n,
-          correct = Just correct,
-          errors = if correct then model.errors else model.errors + 1,
-          corrects = if correct then model.corrects + 1 else model.corrects
-        }
-    Next ->
-      let
-        (equation, seed) = newEquation model.seed
-      in
-        { model |
-          equation = equation,
-          seed = seed,
-          choice = Nothing,
-          correct = Nothing
-        }
-    Tick ->
-      { model |
-        time = if model.done then model.time else model.time + 1,
-        done = model.time >= 60*15
-      }
-
-
--- SIGNALS
-
-inbox : Mailbox Action
-inbox =
-  Signal.mailbox NoOp
-
-
-actions : Signal Action
-actions =
-  Signal.merge inbox.signal timer
-
-
-model : Signal Model
-model =
-  let
-    seed = Random.initialSeed 1
-  in
-    Signal.foldp update (initialModel seed) actions
-
-
-timer : Signal Action
-timer =
-  Signal.map (always Tick) (Time.every second)
-
-
--- MAIN
-
-main : Signal Html
-main =
-  Signal.map (view inbox.address) model
