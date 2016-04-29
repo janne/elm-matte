@@ -9,8 +9,7 @@ import CSS exposing (..)
 import Maybe
 import String exposing (pad)
 import Time exposing (Time, second)
-import Random
-import Task
+import Equation
 
 main =
   Html.program
@@ -19,9 +18,7 @@ main =
 -- MODEL
 
 type alias Model = {
-  equation : Equation,
-  choice : Maybe Int,
-  correct : Maybe Bool,
+  equation : Equation.Model,
   time : Int,
   errors : Int,
   corrects : Int,
@@ -31,118 +28,67 @@ type alias Model = {
 
 init : (Model, Cmd Msg)
 init =
-  update Next initialModel
-
-
-type alias Equation = {
-  const1 : Int,
-  operator: Operator,
-  const2 : Int,
-  answer : Int
-}
-
-
-type alias Operator = {
-  func: (Int -> Int -> Int),
-  symbol: String
-}
-
-
-plus : Operator
-plus =
-  Operator (+) "+"
-
-
-minus : Operator
-minus =
-  Operator (-) "-"
-
-
-initEquation : Int -> Operator -> Int -> Equation
-initEquation n1 op n2 =
   let
-    answer = op.func n1 n2
+    ( equation, eqCmd ) = Equation.init
+    cmd = Cmd.map EquationMsg eqCmd
   in
-    {
-      const1 = n1,
-      operator = op,
-      const2 = n2,
-      answer = answer
-    }
-
-
-
-initialModel : Model
-initialModel =
-  {
-    equation = initEquation 0 plus 0,
-    choice = Nothing,
-    correct = Nothing,
-    time = 0,
-    errors = 0,
-    corrects = 0,
-    done = False
-  }
+    ({
+      equation = equation,
+      time = 5 * 60,
+      errors = 0,
+      corrects = 0,
+      done = False
+    }, cmd)
 
 
 -- UPDATE
 
 type Msg
-  = Restart
-  | Choice Int
-  | NewEquation (Int, Int, Int)
-  | Next
+  = EquationMsg Equation.Msg
   | Tick
+  | Choice Int
+  | Next
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    Restart ->
-      init
-
-    Choice n ->
+    EquationMsg c ->
       let
-        correct = n == model.equation.answer
+        (eq, cmd) = Equation.update c model.equation
       in
-        (
-          { model |
-            choice = Just n,
-            correct = Just correct,
-            errors = if correct then model.errors else model.errors + 1,
-            corrects = if correct then model.corrects + 1 else model.corrects
-          }
-          , Cmd.none
-        )
+        ({model | equation = eq}, Cmd.map EquationMsg cmd)
 
     Next ->
       let
-        g21 = (Random.int 0 20)
-        g2 = (Random.int 0 1)
-        gen = Random.map3 (,,) g21 g2 g21
+        ( equation, eqCmd ) = Equation.init
+        cmd = Cmd.map EquationMsg eqCmd
       in
-        (model, (Random.generate NewEquation gen))
+        ({ model | equation = equation }, cmd)
 
-    NewEquation (n1, op, n2) ->
-      let
-        operand = if op == 0 then plus else minus
-        equation = initEquation n1 operand n2
-        answer = operand.func n1 n2
-      in
-        if answer >= 0 && answer <= 20 then
-          ({ model |
-            equation = equation,
-            choice = Nothing,
-            correct = Nothing
-          }, Cmd.none)
-        else
-          update Next model
+    Choice n ->
+      if not model.done && Equation.correct model.equation /= Just True then
+        let
+          (model, cmd) = update (EquationMsg (Equation.Choice n)) model
+        in
+          case Equation.correct model.equation of
+            Nothing ->
+              (model, cmd)
+            Just True ->
+              ({ model | corrects = model.corrects + 1 }, cmd)
+            Just False ->
+              ({ model | errors = model.errors + 1 }, cmd)
+      else
+        (model, Cmd.none)
 
     Tick ->
-      ({ model |
-        time = if model.done then model.time else model.time + 1,
-        done = model.time >= 60*15
-      }, Cmd.none)
+      let
+        done = model.time <= 0
+      in
+        ({ model |
+          time = if done then model.time else model.time - 1,
+          done = done
+        }, Cmd.none)
 
 
 -- SUBSCRIPTIONS
@@ -164,7 +110,7 @@ spanStyle =
     borderColor "#ccc",
     borderStyle "solid",
     borderRadius 20,
-    backgroundColor "#eea",
+    backgroundColor "#eae",
     fontSize 24,
     width 40,
     height 40,
@@ -173,40 +119,12 @@ spanStyle =
   ]
 
 
-formatEquation : Equation -> List String
-formatEquation equation =
-  [ toString equation.const1
-  , equation.operator.symbol
-  , toString equation.const2
-  , "="
-  ]
-
-
-viewEquation : Model -> Html Msg
-viewEquation model =
-  let
-    toSpan str = span [ style spanStyle ] [ text str ]
-    response = case model.choice of
-      Just n -> toString n
-      Nothing -> "?"
-    spans = List.map toSpan (formatEquation model.equation)
-    correctStyle = case model.correct of
-      Just True ->
-        [ backgroundColor "#5f5" ]
-      Just False ->
-        [ backgroundColor "#f55" ]
-      Nothing ->
-        []
-  in
-    div [] (spans ++ [ span [ styles [ correctStyle, spanStyle ]  ] [ text response ] ])
-
-
 viewAlternatives : Html Msg
 viewAlternatives =
   let
     toLink num = a [
       href "#",
-      styles [[backgroundColor "#eae"], spanStyle ],
+      style spanStyle,
       onClick (Choice num)
     ] [ toString num |> text ]
   in
@@ -218,27 +136,21 @@ viewAlternatives =
 
 next : Model -> Html Msg
 next model =
-  case model.correct of
-    Just True ->
-      if model.done then
-         span [] [
-           span [ style [ fontSize 24 ] ] [ text  "Du är klar!" ],
-           div [] [
-             button [
-               style [ fontSize 24 ],
-               onClick Restart
-             ] [ text "Börja om" ]
-           ]
-         ]
-      else
-        button [
-          style [ fontSize 24, marginTop 20 ],
-          onClick Next
-        ] [ text "Nästa" ]
-    Just False ->
-      span [ style [ fontSize 24 ] ] [ text  "Tyvärr, fel." ]
-    Nothing ->
-      text ""
+   if model.done then
+      span [] [
+        span [ style [ fontSize 24 ] ] [ text  "Du är klar!" ]
+      ]
+   else
+     case Equation.correct model.equation of
+       Just True ->
+         button [
+           style [ fontSize 24, marginTop 20 ],
+           onClick Next
+         ] [ text "Nästa" ]
+       Just False ->
+         span [ style [ fontSize 24 ] ] [ text  "Tyvärr, fel." ]
+       Nothing ->
+         text ""
 
 
 zeroPad : Int -> String
@@ -275,7 +187,7 @@ view model =
       text <| "Antal fel: ",
       span [ style [ color "#f55" ] ] [ model.errors |> toString |> text ]
     ],
-    viewEquation model,
+    Html.map EquationMsg (Equation.view model.equation),
     viewAlternatives,
     next model
   ]
