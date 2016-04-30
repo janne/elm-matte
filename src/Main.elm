@@ -1,5 +1,3 @@
-module Matte exposing (..)
-
 import Html exposing (..)
 import List
 import Html.Attributes exposing (id, style, href)
