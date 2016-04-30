@@ -1,4 +1,4 @@
-module Equation exposing (Model, Msg (Choice), init, update, view, correct)
+module Equation exposing (Model, Msg (Choice), Answer (Unanswered, Correct, Wrong), init, update, view, isCorrect)
 
 import Random
 import Html exposing (..)
@@ -14,6 +14,13 @@ type alias Model = {
   choice : Maybe Int,
   answer : Int
 }
+
+
+type Answer
+  = Unanswered
+  | Correct
+  | Wrong
+
 
 type alias Operator = {
   func: (Int -> Int -> Int),
@@ -43,14 +50,14 @@ init =
     Random.generate New generator
   )
 
-correct : Model -> Maybe Bool
-correct model =
+isCorrect : Model -> Answer
+isCorrect model =
   case model.choice of
     Nothing ->
-      Nothing
+      Unanswered
 
     Just n ->
-      Just <| n == model.answer
+      if n == model.answer then Correct else Wrong
 
 -- UPDATE
 

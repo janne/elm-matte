@@ -8,6 +8,7 @@ import Maybe
 import String exposing (pad)
 import Time exposing (Time, second)
 import Equation
+import Equation exposing (Answer (..))
 
 main =
   Html.program
@@ -65,16 +66,16 @@ update msg model =
         ({ model | equation = equation }, cmd)
 
     Choice n ->
-      if not model.done && Equation.correct model.equation /= Just True then
+      if not model.done && Equation.isCorrect model.equation /= Correct then
         let
           (model, cmd) = update (EquationMsg (Equation.Choice n)) model
         in
-          case Equation.correct model.equation of
-            Nothing ->
+          case Equation.isCorrect model.equation of
+            Unanswered ->
               (model, cmd)
-            Just True ->
+            Correct ->
               ({ model | corrects = model.corrects + 1 }, cmd)
-            Just False ->
+            Wrong ->
               ({ model | errors = model.errors + 1 }, cmd)
       else
         (model, Cmd.none)
@@ -139,15 +140,15 @@ next model =
         span [ style [ fontSize 24 ] ] [ text  "Du är klar!" ]
       ]
    else
-     case Equation.correct model.equation of
-       Just True ->
+     case Equation.isCorrect model.equation of
+       Correct ->
          button [
            style [ fontSize 24, marginTop 20 ],
            onClick Next
          ] [ text "Nästa" ]
-       Just False ->
+       Wrong ->
          span [ style [ fontSize 24 ] ] [ text  "Tyvärr, fel." ]
-       Nothing ->
+       Unanswered ->
          text ""
 
 
