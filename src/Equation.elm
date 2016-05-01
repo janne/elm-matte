@@ -47,7 +47,7 @@ init =
     , choice = Nothing
     , answer = 0
     },
-    Random.generate New generator
+    Random.generate New equation
   )
 
 
@@ -64,38 +64,35 @@ isCorrect model =
 -- UPDATE
 
 type Msg
-  = New (Int, Operator, Int)
+  = New Model
   | Choice Int
 
 
-opGenerator : Random.Generator Operator
-opGenerator =
-  Random.map (\n -> if n == 0 then plus else minus) (Random.int 0 1)
-
-
-generator : Random.Generator ( Int, Operator, Int )
-generator =
-  Random.map3 (,,) (Random.int 0 20) opGenerator (Random.int 0 20)
+equation : Random.Generator Model
+equation =
+  let
+    opGenerator = Random.map (\n -> if n == 0 then plus else minus) (Random.int 0 1)
+    numGenerator = Random.int 0 20
+    values = Random.map3 (,,) numGenerator opGenerator numGenerator
+  in
+    Random.map (\(n1, op, n2) ->
+      { n1 = n1
+      , op = op
+      , n2 = n2
+      , choice = Nothing
+      , answer = op.func n1 n2
+      }) values
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
 
-    New (n1, operand, n2) ->
-      let
-        equation =
-          { n1 = n1
-          , op = operand
-          , n2 = n2
-          , choice = Nothing
-          , answer = operand.func n1 n2
-          }
-      in
-        if equation.answer >= 0 && equation.answer <= 20 then
-          (equation, Cmd.none)
-        else
-          (model, Random.generate New generator)
+    New newModel ->
+      if newModel.answer >= 0 && newModel.answer <= 20 then
+        (newModel, Cmd.none)
+      else
+        (model, Random.generate New equation)
 
     Choice n ->
       ({ model | choice = Just n }, Cmd.none)
