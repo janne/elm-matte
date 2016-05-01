@@ -50,6 +50,7 @@ init =
     Random.generate New generator
   )
 
+
 isCorrect : Model -> Answer
 isCorrect model =
   case model.choice of
@@ -59,28 +60,30 @@ isCorrect model =
     Just n ->
       if n == model.answer then Correct else Wrong
 
+
 -- UPDATE
 
 type Msg
-  = New (Int, Int, Int)
+  = New (Int, Operator, Int)
   | Choice Int
 
-generator : Random.Generator ( Int, Int, Int )
+
+opGenerator : Random.Generator Operator
+opGenerator =
+  Random.map (\n -> if n == 0 then plus else minus) (Random.int 0 1)
+
+
+generator : Random.Generator ( Int, Operator, Int )
 generator =
-  let
-    g21 = (Random.int 0 20)
-    g2 = (Random.int 0 1)
-  in
-    Random.map3 (,,) g21 g2 g21
+  Random.map3 (,,) (Random.int 0 20) opGenerator (Random.int 0 20)
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
 
-    New (n1, op, n2) ->
+    New (n1, operand, n2) ->
       let
-        operand = if op == 0 then plus else minus
         equation =
           { n1 = n1
           , op = operand
