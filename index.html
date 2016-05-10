@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Elm Matte</title>
+    <script>
+      window.nodeRequire = require;
+      delete window.require;
+      delete window.exports;
+      delete window.module;
+    </script>
+    <script type="text/javascript" src="elm.js"></script>
+  </head>
+  <body>
+    <script type="text/javascript">
+      Elm.Main.fullscreen();
+    </script>
+  </body>
+</html>

@@ -11,6 +11,16 @@ Setup
 * `elm reactor`
 * http://localhost:8000/src/Main.elm
 
+Electron
+--------
+
+To create a runnable Mac OS X app.
+
+* `elm make src/Main.elm --output elm.js`
+* `npm install`
+* `npm run packager`
+* `open Elm\ Matte-darwin-x64`
+
 CSS
 ---
 
